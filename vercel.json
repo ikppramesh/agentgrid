@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "prisma generate && prisma migrate deploy && next build",
+  "functions": {
+    "src/app/api/queue/worker/route.ts": { "maxDuration": 60 },
+    "src/app/api/channels/**/route.ts": { "maxDuration": 30 }
+  },
+  "crons": [
+    { "path": "/api/queue/worker", "schedule": "* * * * *" },
+    { "path": "/api/cron/sla-probe", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/retention", "schedule": "30 2 * * *" }
+  ]
+}

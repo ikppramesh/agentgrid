@@ -1,0 +1,11 @@
+{"id":"re-happy-path","template":"real-estate-lead","turns":[{"user":"hi","intent":"greeting","replyContains":"name"},{"user":"Ravi Kumar","slots":{"name":"Ravi Kumar"}},{"user":"9876543210","slots":{"phone":"9876543210"}},{"user":"Whitefield","slots":{"location":"Whitefield"}},{"user":"around 90 lakh","slots":{"budget":"90 lakh"}},{"user":"in 3 months","qualified":true,"replyContains":"advisor"}]}
+{"id":"re-opportunistic-entities","template":"real-estate-lead","turns":[{"user":"Hello, my name is Anita Rao","slots":{"name":"Anita Rao"}},{"user":"call me on +91 98450 12345, budget 1.2 crore","slots":{"phone":"+91 98450 12345","budget":"1.2 crore"}}]}
+{"id":"re-question-mid-flow","template":"real-estate-lead","turns":[{"user":"hi"},{"user":"Do you help with home loans?","answerQuestion":true}]}
+{"id":"re-human-request","template":"real-estate-lead","turns":[{"user":"I want to talk to a human","intent":"human","handover":"requested"}]}
+{"id":"re-opt-out","template":"real-estate-lead","turns":[{"user":"STOP","intent":"opt_out","optOut":true}]}
+{"id":"re-forget","template":"real-estate-lead","turns":[{"user":"please delete my data","intent":"forget","erase":true}]}
+{"id":"re-gibberish-escalates","template":"real-estate-lead","turns":[{"user":"hi"},{"user":"asdkjh qwe"},{"user":"zzzz xxxx","handover":"low_confidence"}]}
+{"id":"clinic-emergency","template":"clinic-appointment","turns":[{"user":"my father has chest pain","intent":"emergency","handover":"emergency"}]}
+{"id":"clinic-booking","template":"clinic-appointment","turns":[{"user":"I need an appointment","intent":"book"},{"user":"Meera Shah","slots":{"name":"Meera Shah"}},{"user":"9123456780","slots":{"phone":"9123456780"}},{"user":"tomorrow","slots":{"date":"tomorrow"}},{"user":"dermatology","qualified":true}]}
+{"id":"shop-recommend","template":"ecommerce-assistant","turns":[{"user":"can you recommend a gift?","intent":"recommend"},{"user":"headphones","slots":{"category":"headphones"}},{"user":"under 5k","slots":{"budget":"5k"},"qualified":true}]}
+{"id":"shop-returns-question","template":"ecommerce-assistant","turns":[{"user":"What is your return policy?","intent":"returns","answerQuestion":true}]}

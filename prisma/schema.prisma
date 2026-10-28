@@ -1,0 +1,289 @@
+// AgentGrid data model. Every tenant-owned row carries tenantId and every
+// query in the app is scoped by it (see src/lib/auth/access.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantKind {
+  AGENCY  // reseller: owns client tenants, white-labels the console
+  CLIENT  // business using agents (may belong to an agency)
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  OPERATOR // human agent: works conversations
+  VIEWER
+}
+
+enum ChannelType {
+  WEBCHAT
+  TELEGRAM
+  WEBHOOK // generic signed webhook – bridge for WhatsApp / Messenger / SMS
+}
+
+enum ConversationStatus {
+  BOT
+  HANDOVER // waiting for / handled by a human
+  RESOLVED
+}
+
+enum Direction {
+  INBOUND
+  OUTBOUND
+}
+
+enum Sender {
+  CONTACT
+  BOT
+  HUMAN
+  SYSTEM
+}
+
+model Tenant {
+  id               String     @id @default(cuid())
+  slug             String     @unique
+  name             String
+  kind             TenantKind @default(CLIENT)
+  parentId         String?
+  parent           Tenant?    @relation("AgencyClients", fields: [parentId], references: [id])
+  clients          Tenant[]   @relation("AgencyClients")
+  plan             String     @default("starter")
+  // Envelope encryption: tenant data key wrapped by MASTER_KEY.
+  wrappedDataKey   String
+  // White-label branding (clients inherit from their agency when unset).
+  brandName        String?
+  brandLogoUrl     String?
+  brandColor       String?
+  // Compliance controls.
+  retentionDays    Int        @default(180)
+  llmEnabled       Boolean    @default(true) // false => no data leaves to cloud LLMs
+  piiRedaction     Boolean    @default(true)
+  sandbox          Boolean    @default(false) // sandboxed client: no outbound integrations fire
+  suspended        Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+
+  memberships   Membership[]
+  agents        Agent[]
+  channels      Channel[]
+  contacts      Contact[]
+  conversations Conversation[]
+  messages      Message[]
+  integrations  Integration[]
+  ssoConfig     SsoConfig?
+  usage         UsageRecord[]
+  auditLogs     AuditLog[]
+  knowledge     KnowledgeItem[]
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String?
+  passwordHash String?      // null for SSO-only users
+  mfaRequired  Boolean      @default(false)
+  disabled     Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  lastLoginAt  DateTime?
+  memberships  Membership[]
+}
+
+model Membership {
+  id       String @id @default(cuid())
+  userId   String
+  tenantId String
+  role     Role
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+}
+
+model SsoConfig {
+  id               String  @id @default(cuid())
+  tenantId         String  @unique
+  tenant           Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  issuer           String  // OIDC issuer URL (Google, Entra ID, Okta, Auth0…)
+  clientId         String
+  clientSecretEnc  String  // encrypted with tenant data key
+  allowedDomains   String[] // email domains allowed to sign in
+  defaultRole      Role    @default(VIEWER)
+  enforced         Boolean @default(false) // disable password login for this tenant
+}
+
+model Agent {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name               String
+  templateId         String   // e.g. real-estate-lead
+  persona            String   @default("")
+  greeting           String?
+  handoverThreshold  Float    @default(0.45) // NLU confidence below this => human
+  config             Json     @default("{}") // template overrides: booking link, payment link…
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+
+  channels      Channel[]
+  conversations Conversation[]
+}
+
+model Channel {
+  id            String      @id @default(cuid())
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agentId       String
+  agent         Agent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  type          ChannelType
+  name          String
+  // Encrypted JSON: bot tokens, webhook secrets, outbound URL.
+  credentialsEnc String
+  active        Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+
+  conversations Conversation[]
+}
+
+model Contact {
+  id             String    @id @default(cuid())
+  tenantId       String
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  channelType    ChannelType
+  externalId     String    // telegram chat id, webchat visitor id, whatsapp number hash…
+  displayName    String?
+  profileEnc     String?   // encrypted JSON of captured PII (email, phone, name)
+  consentAt      DateTime?
+  consentText    String?
+  optedOut       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+
+  conversations Conversation[]
+
+  @@unique([tenantId, channelType, externalId])
+}
+
+model Conversation {
+  id              String             @id @default(cuid())
+  tenantId        String
+  tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agentId         String
+  agent           Agent              @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  channelId       String
+  channel         Channel            @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  contactId       String
+  contact         Contact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  status          ConversationStatus @default(BOT)
+  state           Json               @default("{}") // dialogue manager state (step, slots)
+  assignedUserId  String?
+  handoverReason  String?
+  qualified       Boolean            @default(false)
+  firstResponseMs Int?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  resolvedAt      DateTime?
+
+  messages Message[]
+
+  @@index([tenantId, status, updatedAt])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  tenantId       String
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction      Direction
+  sender         Sender
+  text           String       // PII-redacted text (safe for analytics/export)
+  textEnc        String?      // encrypted original (visible only with pii:read)
+  externalId     String?      // channel message id (idempotency)
+  // NLU / model-ops annotations
+  intent         String?
+  confidence     Float?
+  labeledIntent  String?      // human correction (feedback loop)
+  model          String?
+  promptVersion  String?
+  inputTokens    Int?
+  outputTokens   Int?
+  latencyMs      Int?
+  guardrailFlags String[]
+  deliveredAt    DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([conversationId, createdAt])
+}
+
+model KnowledgeItem {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agentId   String?
+  title     String
+  content   String
+  tags      String[]
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model Integration {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  kind       String   // hubspot | crm_webhook | outbound_webhook
+  configEnc  String   // encrypted JSON
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, kind])
+}
+
+model UsageRecord {
+  id               String @id @default(cuid())
+  tenantId         String
+  tenant           Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  period           String // YYYY-MM
+  messagesIn       Int    @default(0)
+  messagesOut      Int    @default(0)
+  conversations    Int    @default(0)
+  llmCalls         Int    @default(0)
+  llmInputTokens   Int    @default(0)
+  llmOutputTokens  Int    @default(0)
+  workflowRuns     Int    @default(0)
+
+  @@unique([tenantId, period])
+}
+
+model SlaProbe {
+  id        String   @id @default(cuid())
+  at        DateTime @default(now())
+  ok        Boolean
+  dbMs      Int
+  redisMs   Int
+  queueDepth Int
+  deadLetters Int
+
+  @@index([at])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  actorId   String?  // user id, or "system"
+  action    String   // e.g. conversation.reply, agent.update, privacy.erase
+  target    String?
+  meta      Json     @default("{}")
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+}

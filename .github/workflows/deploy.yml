@@ -1,0 +1,56 @@
+name: Deploy (Vercel)
+
+# Preview deployment for every PR; production on main after CI passes,
+# gated by the "production" GitHub environment (required reviewers).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: read
+  deployments: write
+  pull-requests: write
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  preview:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    environment: preview
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ github.event.workflow_run.head_sha }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm i -g vercel@latest
+      - run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+      - id: deploy
+        run: echo "url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})" >> "$GITHUB_OUTPUT"
+      - name: Smoke test
+        run: curl -fsS "${{ steps.deploy.outputs.url }}/api/health"
+
+  production:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ github.event.workflow_run.head_sha }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm i -g vercel@latest
+      - run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      # Migrations run inside the build (prisma migrate deploy) – forward-only, backwards-compatible.
+      - run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      # Deploy without taking traffic, smoke test, then promote (blue/green on Vercel).
+      - id: deploy
+        run: echo "url=$(vercel deploy --prebuilt --prod --skip-domain --token=${{ secrets.VERCEL_TOKEN }})" >> "$GITHUB_OUTPUT"
+      - name: Smoke test candidate
+        run: curl -fsS "${{ steps.deploy.outputs.url }}/api/health"
+      - name: Promote
+        run: vercel promote "${{ steps.deploy.outputs.url }}" --yes --token=${{ secrets.VERCEL_TOKEN }}

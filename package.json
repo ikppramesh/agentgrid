@@ -1,0 +1,60 @@
+{
+  "name": "agentgrid",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-tenant AI customer engagement & business automation platform",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "worker": "tsx scripts/worker.ts",
+    "eval": "tsx scripts/eval.ts",
+    "dataset:export": "tsx scripts/export-dataset.ts",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.3.0",
+    "@prisma/client": "6.19.3",
+    "bcryptjs": "3.0.3",
+    "ioredis": "5.11.1",
+    "jose": "5.10.0",
+    "next": "15.5.28",
+    "react": "19.1.10",
+    "react-dom": "19.1.10",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.1.11",
+    "@eslint/eslintrc": "3.3.7",
+    "eslint": "9.39.5",
+    "eslint-config-next": "15.5.28",
+    "ioredis-mock": "8.13.1",
+    "prisma": "6.19.3",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "esbuild@0.28.2": true,
+    "prisma@6.19.3": true,
+    "unrs-resolver@1.12.2": true,
+    "fsevents": false
+  },
+  "overrides": {
+    "postcss": "8.5.32",
+    "deepmerge-ts": "8.0.2"
+  }
+}
