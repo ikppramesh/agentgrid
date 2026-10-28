@@ -42,7 +42,7 @@
     "ioredis-mock": "8.13.1",
     "prisma": "6.19.3",
     "tsx": "4.23.15",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vitest": "3.2.7"
   },
   "allowScripts": {
