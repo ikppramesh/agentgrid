@@ -31,7 +31,7 @@ jobs:
       APP_URL: http://localhost:3000
       LLM_ENABLED: "false"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Generate throwaway CI secrets
         run: |
           echo "MASTER_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
@@ -55,7 +55,7 @@ jobs:
   secrets-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - uses: gitleaks/gitleaks-action@v2
         env:
