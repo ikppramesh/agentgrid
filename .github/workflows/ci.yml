@@ -37,7 +37,7 @@ jobs:
           echo "MASTER_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
           echo "SESSION_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
           echo "CRON_SECRET=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - name: Prisma schema & migrations
